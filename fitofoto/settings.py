@@ -37,6 +37,12 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "admins",
+    "experts",
+    "farmers",
+    "plantkb",
+    "subscription",
+    "datasetbuilder",
 ]
 
 MIDDLEWARE = [
@@ -74,9 +80,16 @@ WSGI_APPLICATION = "fitofoto.wsgi.application"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'citus',
+        'USER': 'citus',
+        'PASSWORD': 'w)+*LgR26KGt)^7Z',
+        'HOST': 'c.fitofoto.postgres.database.azure.com',
+        'PORT': '5432',
+        'OPTIONS': {
+            'sslmode': 'require',
+        },
     }
 }
 
