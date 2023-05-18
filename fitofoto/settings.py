@@ -9,12 +9,23 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
-
+import os
 from pathlib import Path
+
+import environ
+
+OSGEO4W = r"C:\OSGeo4W"
+os.environ['OSGEO4W_ROOT'] = OSGEO4W
+os.environ['PROJ_LIB'] = OSGEO4W + r"\share\proj"
+GDAL_LIBRARY_PATH = r'C:\OSGeo4W\bin\gdal306'
+os.environ['PATH'] = OSGEO4W + r"\bin;" + os.environ['PATH']
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+env = environ.Env()
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -43,6 +54,8 @@ INSTALLED_APPS = [
     "plantkb",
     "subscription",
     "datasetbuilder",
+    "whatsappapi",
+
 ]
 
 MIDDLEWARE = [
@@ -81,19 +94,29 @@ WSGI_APPLICATION = "fitofoto.wsgi.application"
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'citus',
-        'USER': 'citus',
-        'PASSWORD': 'w)+*LgR26KGt)^7Z',
-        'HOST': 'c.fitofoto.postgres.database.azure.com',
-        'PORT': '5432',
-        'OPTIONS': {
-            'sslmode': 'require',
-        },
+        'ENGINE': 'django.contrib.gis.db.backends.postgis',
+        # 'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('DB_NAME'),
+        'USER': env('DB_USER'),
+        'PASSWORD': env('DB_PASSWORD'),
+        'HOST': env('DB_HOST'),
+        'PORT': env('DB_PORT'),
     }
 }
 
-
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'citus',
+#         'USER': 'citus',
+#         'PASSWORD': 'w)+*LgR26KGt)^7Z',
+#         'HOST': 'c.fitofoto.postgres.database.azure.com',
+#         'PORT': '5432',
+#         'OPTIONS': {
+#             'sslmode': 'require',
+#         },
+#     }
+# }
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
@@ -124,6 +147,7 @@ USE_I18N = True
 
 USE_TZ = True
 
+ALLOWED_HOSTS = ["*"]
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
@@ -134,3 +158,4 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+

@@ -5,9 +5,11 @@ from django.db import models
 # store conversations as instance
 class Conversation(models.Model):
     phone_number = models.CharField(max_length=20)
+    name = models.CharField(max_length=20, default="farmer")
     # conversation type can be expert or farmer
     conversation_type = models.CharField(choices=(('expert', 'expert'), ('farmer', 'farmer')), max_length=10)
     date_created = models.DateTimeField(auto_now_add=True)
+    conversation_language = models.CharField(max_length=10, default="English")
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
@@ -21,6 +23,7 @@ class TextMessage(models.Model):
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE)
     message = models.CharField(max_length=1000)
     date_created = models.DateTimeField(auto_now_add=True)
+    sent_by_bot = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
@@ -32,7 +35,7 @@ class TextMessage(models.Model):
 # store image messages
 class ImageMessage(models.Model):
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE)
-    media_message = models.ImageField(upload_to='media_messages')
+    image_message = models.ImageField(upload_to='image_messages')
     date_created = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 
