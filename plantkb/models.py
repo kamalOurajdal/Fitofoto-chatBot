@@ -19,8 +19,8 @@ class Plant(models.Model):
 class Disease(models.Model):
     disease_name = models.CharField(max_length=30)
     disease_plant = models.ForeignKey(Plant, on_delete=models.CASCADE)
-    disease_diseased_top_leaf_image = models.ImageField(upload_to='diseases')
-    disease_diseased_bottom_leaf_image = models.ImageField(upload_to='diseases')
+    # disease_diseased_top_leaf_image = models.ImageField(upload_to='diseases')
+    # disease_diseased_bottom_leaf_image = models.ImageField(upload_to='diseases')
     date_created = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 

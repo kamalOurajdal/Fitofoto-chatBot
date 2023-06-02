@@ -16,15 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from whatsappapi.views import whatsapp_webhook, verify_token
-
+from whatsappapi.views import whatsapp_webhook, verify_token, web_webhook
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("analyze", web_webhook, name="web_verify_token"),
     path("webhook", whatsapp_webhook, name="webhook"),
     path("webhook", verify_token, name="verify_token"),
-
     # after verfiy token, you must move the "webhook" above the "verify_token" to avoid error
-
 
 ]

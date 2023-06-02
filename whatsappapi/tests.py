@@ -1,35 +1,21 @@
-import requests
+from googletrans import Translator
 
-# Replace YOUR_API_KEY with your actual API key
-api_key = 'f1cff3f042bece694e866a30de2127bf'
+# function that takes a message and translates it
 
-# Set the URL for the API endpoint
-url = f'https://api.openweathermap.org/data/2.5/weather?lat=30.4211&lon=-9.5831&appid={api_key}'
-# Send the HTTP request
-response = requests.get(url)
-# Check if the request was successful
-if response.status_code == 200:
-    # Convert the response to JSON format
-    data = response.json()
-
-    response = requests.get(url).json()
-
-    weather_main = response["weather"][0]["main"]
-    wind_speed = response["wind"]["speed"]
-    pressure = response["main"]["pressure"]
-    city_name = response["name"]
-    temperature = response["main"]["temp"]
-    humidity = response["main"]["humidity"]
-    weather_description = response["weather"][0]["description"]
-
-    print("Weather main:", weather_main)
-    print("Wind speed:", wind_speed)
-    print("Pressure:", pressure)
-    print("City name:", city_name)
-    print("Temperature:", temperature)
-    print("Humidity:", humidity)
-    print("Weather description:", weather_description)
+def translate(message):
+    translator = Translator()
+    translation = translator.translate(message ,dest='francais')
+    return translation.text
+# Add the message handler to the bot
 
 
-else:
-    print('Error:', response.status_code)
+message = "1- Find a well-lit area and avoid shadows on the leaf.\n" \
+          "2- Place your hand behind the leaf to focus only on it.\n" \
+          "3- Hold your device steady to avoid blurriness.\n " \
+          "4- Capture a photo from the top of the leaf\n" \
+          "5- Capture another photo from the bottom of the leaf\n" \
+          "6- Send both photos as attachments."
+
+translated_message = translate(message)
+print(translated_message)
+

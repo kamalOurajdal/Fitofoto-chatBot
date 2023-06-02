@@ -1,25 +1,32 @@
 import datetime
 import json
 import os
+import re
+from io import BytesIO
+
 import environ
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 import uuid
 import warnings
 import logging
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from fastai.vision import open_image
 from heyoo import WhatsApp
 
+import whatsappapi.views
+from admins import models
 from detectionapi.functions import detect_image
+from plantkb.models import Plant, Disease
 from weatherapi.weatherapi import get_weather_data
 from azuregpt.azureopenai import sendgpt
-from .functions import get_user_language
+from webapi.models import ImageUploadForm
+from .functions import get_user_language, send_instructions, get_name_plant
 
 from .models import TextMessage, Conversation, LocationMessage, ImageMessage, VideoMessage, AudioMessage, \
     DocumentMessage
 
 from farmers.models import Farmer
-
 
 warnings.filterwarnings("ignore")
 
@@ -29,13 +36,17 @@ from django.shortcuts import render
 
 
 
-
 env = environ.Env()
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
+# variable that counts the number of messages sent by the bot
+
+number_of_photos = 0
+plant_id = -1
 
 messenger = WhatsApp(token=env('WHATSAPP_TOKEN'), phone_number_id=env('PHONE_NUMBER_ID'))
+
 @csrf_exempt
 @require_http_methods(['GET'])
 def verify_token(request):
@@ -49,6 +60,32 @@ def verify_token(request):
         logging.error("webhook verification failed")
         return HttpResponse("invalide verification token", status=400)
 
+def handle_uploaded_file(uploaded_file, destination):
+    with open(destination, 'wb') as destination_file:
+        for chunk in uploaded_file.chunks():
+            destination_file.write(chunk)
+@csrf_exempt
+def web_webhook(request):
+    if request.method == 'POST':
+        file = request.FILES['file']
+        logging.info(file)
+        image_name = str(uuid.uuid4())
+        form = ImageUploadForm.objects.create(image=request.FILES['file'])
+        logging.info("image.image.path = " + form.image.path)
+        pred_class, confidence = detect_image(form.image.path)
+
+        data = {
+            'prediction': str(pred_class),
+            'confidence': confidence
+        }
+
+        response = JsonResponse(data)
+        response['Access-Control-Allow-Origin'] = 'http://localhost:3000'
+        response['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'origin, content-type, accept'
+
+    return response
+
 @csrf_exempt
 def whatsapp_webhook(request):
     if request.method == 'POST':
@@ -57,11 +94,15 @@ def whatsapp_webhook(request):
 
         changed_field = messenger.changed_field(data)
         if changed_field == "messages":
+            global plant_id
             new_message = messenger.get_mobile(data)
             if new_message:
                 mobile = messenger.get_mobile(data)
                 name = messenger.get_name(data)
+                #get the message type: text, image, video, audio, document, location
+                message_type = messenger.get_message_type(data)
                 logging.info("a new message has been received from {}".format(mobile))
+
 
                 #check if the conversation already exists
                 if not Conversation.objects.filter(phone_number=mobile).exists():
@@ -72,9 +113,11 @@ def whatsapp_webhook(request):
                     new_conversation = False
                     logging.info("existing conversation")
 
-                #check if the farmer is subscribed
+                #check if the the farmer is new or not and if he is subscribed
+                farmer_exists = False
                 if Farmer.objects.filter(phone_number=mobile).exists():
                     farmer = Farmer.objects.get(phone_number=mobile)
+                    farmer_exists = True
                     if farmer.is_subsribed:
                         logging.info("farmer is subscribed")
                         allow_acces = True
@@ -82,11 +125,15 @@ def whatsapp_webhook(request):
                         logging.info("farmer is not subscribed")
                         allow_acces = False
 
-                message_type = messenger.get_message_type(data)
 
                 conversation = Conversation.objects.get(phone_number=mobile)
+
+
+
                 # check if the message is a text message
                 if message_type == "text":
+
+                    # pattern = r'^/(\w+), (\w+)$'
                     message = messenger.get_message(data)
                     TextMessage.objects.create(
                         conversation= conversation,
@@ -104,10 +151,28 @@ def whatsapp_webhook(request):
                             conversation = conversation,
                             message = gpt,
                             sent_by_bot = True,)
-
                         get_user_language(messenger, mobile)
 
+                        #---------------------------------------------------------------------------------------------
 
+                    # check if the message matches the pattern
+
+                    # elif re.match(pattern, message):
+                    #     # check if the user is trying to create an account
+                    #     if not farmer_exists:
+                    #         first_name = re.match(pattern, message).group(1)
+                    #         last_name = re.match(pattern, message).group(2)
+                    #         Farmer.objects.create(phone_number=mobile, first_name=first_name, last_name=last_name)
+                    #         messenger.send_message(
+                    #             message="You are seccessfully created your account, "
+                    #                     "you can now send voice messges and generate reports",
+                    #             recipient_id=mobile )
+                    #         TextMessage.objects.create(
+                    #             conversation = conversation,
+                    #             message = "You are seccessfully created your account, "
+                    #                       "you can now send voice messges and generate reports",
+                    #             sent_by_bot = True,
+                    #         )
 
                     # check if the message is an upgrade message
                     elif message.lower() == "upgrade":
@@ -142,10 +207,36 @@ def whatsapp_webhook(request):
                 elif message_type == "interactive":
                     message_response = messenger.get_interactive_response(data)
                     interactive_type = message_response.get("type")
+                    message_id = message_response[interactive_type]["id"].split("-")[0]
                     message_text = message_response[interactive_type]["title"]
-                    logging.info(f"Your selected language is : {message_text}")
-                    conversation.conversation_language = message_text
-                    conversation.save()
+                    logging.info(f"message id: {message_id}")
+                    if message_id == "language":
+                        logging.info(f"Your selected language is : {message_text}")
+                        conversation.conversation_language = message_text
+                        conversation.save()
+                        send_instructions(messenger, mobile, conversation.conversation_language)
+                    elif message_id == "list_plants":
+                        plant_name = message_text
+                        logging.info(f"Your selected plant name is : {plant_name}")
+
+                        plant = Plant.objects.get(id=plant_id)
+                        plant.plant_name = plant_name
+                        plant.save()
+                        messenger.send_message(
+                            message="please also provide the location where the leaf was found using the location sharing feature on your device.",
+                            recipient_id=mobile,
+                        )
+
+
+
+                    # if not farmer_exists:
+                    #     messenger.send_message(
+                    #         message="please send us your first name and last name, to be able to create your account."
+                    #                 "\n\n send us your name in this format:\n */first name, last name*",
+                    #         recipient_id=mobile,
+                    #     )
+
+                    #
 
                 elif message_type == "location":
                     message_location = messenger.get_location(data)
@@ -186,10 +277,28 @@ def whatsapp_webhook(request):
                         conversation=Conversation.objects.get(phone_number=mobile),
                         image_message=image_filename,
                     )
-                    pred_class, confidence = detect_image(image_filename)
-                    solution_gpt = sendgpt(f"respond to this message in {conversation.conversation_language}plant_leaf_disease_detected:{pred_class}")
-                    messenger.send_message(solution_gpt, mobile)
-                    print(f"{mobile} sent image {image_filename}")
+                    # add the image to the model Plant
+                    global number_of_photos
+                    if number_of_photos == 0:
+                        # get the last added plant
+                        plant = Plant.objects.create(plant_healthy_top_leaf_image=image_filename)
+                        plant_id = plant.id
+                        plant.save()
+                        pred_class, confidence = detect_image(image_filename)
+                        Disease.objects.create(disease_name=pred_class,disease_plant=plant)
+                        number_of_photos += 1
+                    elif number_of_photos == 1:
+                        plant = Plant.objects.latest("date_created")
+                        plant.plant_healthy_bottom_leaf_image = image_filename
+                        plant.save()
+                        # disease = Disease.objects.latest("date_created")
+                        # disease.save()
+                        number_of_photos = 0
+                        get_name_plant(messenger, mobile)
+                    # pred_class, confidence = detect_image(image_filename)
+                    # send the detected disease to the ChatGPT to generate a reply to the user
+                    # solution_gpt = sendgpt(f"respond to this message in {conversation.conversation_language} plant_leaf_disease_detected:{pred_class}")
+                    # messenger.send_message(solution_gpt, mobile)
                     logging.info(f"{mobile} sent image {image_filename}")
 
 
@@ -249,7 +358,7 @@ def whatsapp_webhook(request):
                 else:
                     print(f"{mobile} sent {message_type} ")
                     print(data)
-
+#---------------------------------------------------------------------------------------
             # check if the message was dilivered
             else:
                 delivery = messenger.get_delivery(data)

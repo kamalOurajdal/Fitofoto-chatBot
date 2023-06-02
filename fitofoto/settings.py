@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "subscription",
     "datasetbuilder",
     "whatsappapi",
+    "webapi",
 
 ]
 
@@ -159,3 +160,5 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+MEDIA_ROOT = 'fitofoto-back/files'
+MEDIA_URL = MEDIA_ROOT = os.path.join(BASE_DIR, 'files/')

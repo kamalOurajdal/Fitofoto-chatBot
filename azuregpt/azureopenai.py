@@ -89,7 +89,7 @@ conversation_history = [
     {
         "role": "assistant",
         "content": "Thank you for your request. I will connect you with a human expert as soon as possible. Please note that you will"
-                   " be charged $10 per hour for the consultation. Do you agree to these terms?",
+                   " be charged $10 per hour for the consultation. Do you agree to -these terms?",
     },
     {"role": "user", "content": "Yes, I agree."},
     {
